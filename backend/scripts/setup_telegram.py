@@ -12,11 +12,14 @@ would delete the webhook. Run with --polling to switch back to local polling.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import httpx
 
-from vestnio.bot_replies import TEXT
-from vestnio.config import get_settings
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # run from anywhere
+
+from vestnio.bot_replies import TEXT  # noqa: E402
+from vestnio.config import get_settings  # noqa: E402
 
 
 def call(token: str, method: str, **payload) -> dict:

@@ -12,7 +12,9 @@ from pathlib import Path
 from aiogram import Bot
 from aiogram.types import FSInputFile, InputProfilePhotoStatic
 
-from vestnio.config import get_settings
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # run from anywhere
+
+from vestnio.config import get_settings  # noqa: E402
 
 DEFAULT = Path(__file__).resolve().parent.parent / "assets" / "bot-avatar.png"
 
