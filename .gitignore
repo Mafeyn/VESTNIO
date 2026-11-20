@@ -1,4 +1,12 @@
 .env
+.env.*
+!.env.example
+.neon/
+.neon
+# Neon CLI local tooling (neon init) — kept out of the repo so Vercel sees a Python project
+/neon.ts
+/package.json
+/package-lock.json
 .pgdata/
 **/.venv/
 **/__pycache__/
@@ -8,3 +16,4 @@ webapp/dist/
 public/
 .claude/
 .vercel/
+node_modules/

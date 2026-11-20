@@ -1,0 +1,23 @@
+# Never upload secrets, local databases or virtualenvs to Vercel
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+.pgdata
+.neon
+.claude
+**/.venv
+**/__pycache__
+**/.pytest_cache
+node_modules
+webapp/node_modules
+webapp/dist
+public
+backend/tests
+backend/assets
+backend/scripts
+neon.ts
+/package.json
+/package-lock.json
+docker-compose.yml

@@ -183,7 +183,7 @@ cloudflared tunnel --url http://localhost:5173
    - `VESTNIO_WEBHOOK_SECRET` — любая длинная случайная строка;
    - `VESTNIO_WEBAPP_URL` — `https://<проект>.vercel.app/`.
 
-   Нажмите *Deploy*. Сборка Mini App и упаковка API настроены в `vercel.json` и `pyproject.toml`.
+   Нажмите *Deploy*. Проект настроен в `vercel.json` как два [сервиса Vercel](https://vercel.com/docs/services): `frontend` (Vite, `webapp/`) и `backend` (FastAPI, `backend/server.py`). Запросы к `/api/*` идут в бэкенд, все остальные — в Mini App.
 4. **Бот**: впишите тот же `VESTNIO_WEBHOOK_SECRET` в `backend/.env` и выполните:
    ```powershell
    cd backend; .\.venv\Scripts\python scripts\setup_telegram.py https://<проект>.vercel.app
