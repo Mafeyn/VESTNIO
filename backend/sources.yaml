@@ -1,0 +1,222 @@
+# VESTNIO source registry
+#
+# Fields
+#   id            unique slug (stable: it is stored with every article)
+#   name          display name
+#   url           feed / API endpoint / listing page
+#   homepage      optional, shown in the client
+#   category      gaming | world | technology
+#   method        rss | api | html | telegram
+#   adapter       api: hackernews | guardian ; html: html_css (default) ; rss: optional
+#   poll_minutes  optional, defaults to VESTNIO_DEFAULT_POLL_MINUTES (15)
+#   enabled       optional, default true (disabled sources are not polled and hidden from the feed)
+#   show_excerpt  optional, default true; false = headline + link only
+#   language      fallback language code if the feed doesn't declare one
+#   options       adapter-specific settings
+#
+# Only publicly offered feeds/APIs are listed. VESTNIO stores headline, short teaser,
+# image URL and link — never full article text — and always links to the publisher.
+# Run `python -m vestnio.cli check` to verify every entry against the live source.
+# Checked and rejected: lenta.ru (robots.txt disallows), kanobu.ru (malformed feed),
+# vgtimes.ru (not a feed), ixbt.com games feed (404).
+
+defaults:
+  poll_minutes: 15
+  language: ru
+
+sources:
+  # ================================================================ RUSSIAN
+  # ------------------------------------------------------------------ Мир
+  - id: bbc-russian
+    name: BBC Русская служба
+    url: https://feeds.bbci.co.uk/russian/rss.xml
+    homepage: https://www.bbc.com/russian
+    category: world
+    method: rss
+
+  - id: dw-russian
+    name: DW на русском
+    url: https://rss.dw.com/rdf/rss-ru-all
+    homepage: https://www.dw.com/ru/
+    category: world
+    method: rss
+
+  - id: euronews-ru
+    name: Euronews
+    url: https://ru.euronews.com/rss
+    homepage: https://ru.euronews.com
+    category: world
+    method: rss
+
+  - id: interfax
+    name: Интерфакс
+    url: https://www.interfax.ru/rss.asp
+    homepage: https://www.interfax.ru
+    category: world
+    method: rss
+
+  - id: rbc
+    name: РБК
+    url: https://rssexport.rbc.ru/rbcnews/news/30/full.rss
+    homepage: https://www.rbc.ru
+    category: world
+    method: rss
+
+  - id: tass
+    name: ТАСС
+    url: https://tass.ru/rss/v2.xml
+    homepage: https://tass.ru
+    category: world
+    method: rss
+
+  # ------------------------------------------------------------ Технологии
+  - id: 3dnews
+    name: 3DNews
+    url: https://3dnews.ru/news/rss/
+    homepage: https://3dnews.ru
+    category: technology
+    method: rss
+
+  - id: ixbt
+    name: iXBT.com
+    url: https://www.ixbt.com/export/news.rss
+    homepage: https://www.ixbt.com
+    category: technology
+    method: rss
+
+  - id: habr-news
+    name: Хабр
+    url: https://habr.com/ru/rss/news/?fl=ru
+    homepage: https://habr.com/ru/news/
+    category: technology
+    method: rss
+
+  - id: cnews
+    name: CNews
+    url: https://www.cnews.ru/inc/rss/news.xml
+    homepage: https://www.cnews.ru
+    category: technology
+    method: rss
+
+  - id: 4pda
+    name: 4PDA
+    url: https://4pda.to/feed/
+    homepage: https://4pda.to
+    category: technology
+    method: rss
+
+  # ------------------------------------------------------------------ Игры
+  - id: stopgame
+    name: StopGame
+    url: https://rss.stopgame.ru/rss_news.xml
+    homepage: https://stopgame.ru
+    category: gaming
+    method: rss
+
+  # Off: since 2026-11-20 the feed answers automated clients with a captcha page
+  # (bot protection). VESTNIO does not bypass access restrictions.
+  - id: igromania
+    name: Игромания
+    url: https://www.igromania.ru/rss/news.rss
+    homepage: https://www.igromania.ru
+    category: gaming
+    method: rss
+    enabled: false
+
+  - id: dtf
+    name: DTF
+    url: https://dtf.ru/rss/all
+    homepage: https://dtf.ru
+    category: gaming
+    method: rss
+
+  - id: shazoo
+    name: Shazoo
+    url: https://shazoo.ru/feed/rss
+    homepage: https://shazoo.ru
+    category: gaming
+    method: rss
+
+  - id: goha
+    name: GoHa.Ru
+    url: https://www.goha.ru/rss/news
+    homepage: https://www.goha.ru
+    category: gaming
+    method: rss
+
+  - id: gamemag
+    name: GameMAG
+    url: https://gamemag.ru/rss/feed
+    homepage: https://gamemag.ru
+    category: gaming
+    method: rss
+
+  # ======================================================= TELEGRAM CHANNELS
+  # Public channels, read from Telegram's web preview https://t.me/s/<channel>.
+  # Private channels / invite links (t.me/+...) have no preview and can't be added.
+  # Мир
+  - {id: tg-times-ukraina, name: Times of Ukraine, url: "https://t.me/s/times_ukraina", homepage: "https://t.me/times_ukraina", category: world, method: telegram, language: uk}
+  - {id: tg-topor, name: ТОПОР — Горячие новости, url: "https://t.me/s/topor", homepage: "https://t.me/topor", category: world, method: telegram}
+  - {id: tg-toporlive, name: Топор Live, url: "https://t.me/s/toporlive", homepage: "https://t.me/toporlive", category: world, method: telegram}
+  - {id: tg-topor-novostnoy, name: Топор, url: "https://t.me/s/topor_novostnoy", homepage: "https://t.me/topor_novostnoy", category: world, method: telegram}
+  - {id: tg-shot, name: SHOT, url: "https://t.me/s/shot_shot", homepage: "https://t.me/shot_shot", category: world, method: telegram}
+  - {id: tg-baza, name: Baza, url: "https://t.me/s/bazabazon", homepage: "https://t.me/bazabazon", category: world, method: telegram}
+  - {id: tg-svoikr, name: СВОЇ | Кривий Ріг, url: "https://t.me/s/svoiKR", homepage: "https://t.me/svoiKR", category: world, method: telegram, language: uk}
+  - {id: tg-hkr, name: HKR Кривий Ріг, url: "https://t.me/s/hyevuy_k_r", homepage: "https://t.me/hyevuy_k_r", category: world, method: telegram, language: uk}
+  - {id: tg-ekrd, name: Это Кривой Рог, ДЕТКА, url: "https://t.me/s/ekrd_glavniy", homepage: "https://t.me/ekrd_glavniy", category: world, method: telegram}
+  - {id: tg-nmsh, name: НМШ, url: "https://t.me/s/nmshhub", homepage: "https://t.me/nmshhub", category: world, method: telegram}
+  - {id: tg-rim, name: РИМ, url: "https://t.me/s/rhymesrim", homepage: "https://t.me/rhymesrim", category: world, method: telegram}
+  - {id: tg-rhymes, name: Рифмы и Панчи, url: "https://t.me/s/rhymestg", homepage: "https://t.me/rhymestg", category: world, method: telegram}
+  - {id: tg-vpsh, name: ВПШ, url: "https://t.me/s/pravdadirty", homepage: "https://t.me/pravdadirty", category: world, method: telegram}
+  # Технологии
+  - {id: tg-techmedia, name: в IT и выйти, url: "https://t.me/s/techmedia", homepage: "https://t.me/techmedia", category: technology, method: telegram}
+  - {id: tg-exploit, name: Эксплойт, url: "https://t.me/s/exploitex", homepage: "https://t.me/exploitex", category: technology, method: telegram}
+  - {id: tg-itmemes, name: Programmer & IT Memes, url: "https://t.me/s/itmemes", homepage: "https://t.me/itmemes", category: technology, method: telegram}
+  - {id: tg-4pda, name: 4PDA Community, url: "https://t.me/s/pda_4", homepage: "https://t.me/pda_4", category: technology, method: telegram}
+  - {id: tg-kod, name: Код.ру, url: "https://t.me/s/kod_ru", homepage: "https://t.me/kod_ru", category: technology, method: telegram}
+  - {id: tg-technomotel, name: Техномотель, url: "https://t.me/s/technomotel", homepage: "https://t.me/technomotel", category: technology, method: telegram}
+  - {id: tg-open-source, name: Open Source, url: "https://t.me/s/open_source_friend", homepage: "https://t.me/open_source_friend", category: technology, method: telegram}
+  - {id: tg-howdyho, name: Хауди Хо, url: "https://t.me/s/howdyho_official", homepage: "https://t.me/howdyho_official", category: technology, method: telegram}
+  - {id: tg-martyfiles, name: MartyFiles, url: "https://t.me/s/martyfiles", homepage: "https://t.me/martyfiles", category: technology, method: telegram}
+  - {id: tg-texno, name: Техно Апдейты, url: "https://t.me/s/texno_org", homepage: "https://t.me/texno_org", category: technology, method: telegram}
+  # Игры
+  - {id: tg-streaminside, name: STREAM INSIDE, url: "https://t.me/s/streaminside", homepage: "https://t.me/streaminside", category: gaming, method: telegram}
+  - {id: tg-igrovoy, name: Короче | Игровой, url: "https://t.me/s/igrovoy_games", homepage: "https://t.me/igrovoy_games", category: gaming, method: telegram}
+  - {id: tg-logovo, name: Логово Внизу, url: "https://t.me/s/nebudetgg", homepage: "https://t.me/nebudetgg", category: gaming, method: telegram}
+  - {id: tg-blackhub, name: BLACKHUB GAMES, url: "https://t.me/s/BlackHubG", homepage: "https://t.me/BlackHubG", category: gaming, method: telegram}
+  - {id: tg-black-russia, name: BLACK RUSSIA, url: "https://t.me/s/br_dev", homepage: "https://t.me/br_dev", category: gaming, method: telegram}
+
+  # ================================================================ ENGLISH
+  # Verified and working; switched off for the Russian edition. Set `enabled: true`
+  # (or delete the line) to bring any of them back.
+  - {id: bbc-world, name: BBC News, url: "https://feeds.bbci.co.uk/news/world/rss.xml", homepage: "https://www.bbc.com/news/world", category: world, method: rss, language: en, enabled: false}
+  - {id: aljazeera, name: Al Jazeera, url: "https://www.aljazeera.com/xml/rss/all.xml", homepage: "https://www.aljazeera.com", category: world, method: rss, language: en, enabled: false}
+  - {id: npr-world, name: NPR, url: "https://feeds.npr.org/1004/rss.xml", homepage: "https://www.npr.org/sections/world/", category: world, method: rss, language: en, enabled: false}
+  - {id: guardian-world, name: The Guardian, url: "https://www.theguardian.com/world/rss", homepage: "https://www.theguardian.com/world", category: world, method: rss, language: en, enabled: false}
+  - {id: dw-world, name: DW, url: "https://rss.dw.com/rdf/rss-en-world", homepage: "https://www.dw.com/en/world/", category: world, method: rss, language: en, enabled: false}
+  # Official API (needs a free key in VESTNIO_GUARDIAN_API_KEY from https://open-platform.theguardian.com/access/)
+  - {id: guardian-api-world, name: The Guardian (API), url: "https://content.guardianapis.com/search", homepage: "https://www.theguardian.com/world", category: world, method: api, adapter: guardian, language: en, enabled: false, options: {section: world}}
+  - {id: ars-technica, name: Ars Technica, url: "https://feeds.arstechnica.com/arstechnica/index", homepage: "https://arstechnica.com", category: technology, method: rss, language: en, enabled: false}
+  - {id: the-verge, name: The Verge, url: "https://www.theverge.com/rss/index.xml", homepage: "https://www.theverge.com", category: technology, method: rss, language: en, enabled: false}
+  - {id: techcrunch, name: TechCrunch, url: "https://techcrunch.com/feed/", homepage: "https://techcrunch.com", category: technology, method: rss, language: en, enabled: false}
+  # Official Hacker News API
+  - {id: hacker-news, name: Hacker News, url: "https://hacker-news.firebaseio.com/v0/topstories.json", homepage: "https://news.ycombinator.com", category: technology, method: api, adapter: hackernews, language: en, poll_minutes: 20, enabled: false, options: {limit: 30}}
+  # HTML parser: techmeme.com/robots.txt allows "/" (disallows /*.jpg, so no images are taken).
+  # The page has no timestamps, so items get their "first seen" time; a small batch
+  # stops a first poll from flooding the top of the feed.
+  - id: techmeme
+    name: Techmeme
+    url: https://www.techmeme.com/
+    homepage: https://www.techmeme.com
+    category: technology
+    method: html
+    adapter: html_css
+    language: en
+    poll_minutes: 30
+    enabled: false
+    options: {item: "div.clus", link: "div.ii strong a.ourh", title: "div.ii strong a.ourh", summary: "div.ii", credit: "cite", max_items: 10}
+  - {id: polygon, name: Polygon, url: "https://www.polygon.com/rss/index.xml", homepage: "https://www.polygon.com", category: gaming, method: rss, language: en, enabled: false}
+  - {id: eurogamer, name: Eurogamer, url: "https://www.eurogamer.net/feed", homepage: "https://www.eurogamer.net", category: gaming, method: rss, language: en, enabled: false}
+  - {id: rock-paper-shotgun, name: Rock Paper Shotgun, url: "https://www.rockpapershotgun.com/feed", homepage: "https://www.rockpapershotgun.com", category: gaming, method: rss, language: en, enabled: false}
+  - {id: pc-gamer, name: PC Gamer, url: "https://www.pcgamer.com/rss/", homepage: "https://www.pcgamer.com", category: gaming, method: rss, language: en, enabled: false}
+  - {id: gamespot, name: GameSpot, url: "https://www.gamespot.com/feeds/mashup/", homepage: "https://www.gamespot.com", category: gaming, method: rss, language: en, enabled: false}

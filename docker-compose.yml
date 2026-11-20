@@ -1,0 +1,91 @@
+# VESTNIO — production-style stack.
+#   cp .env.example .env   # fill in values
+#   docker compose up -d --build
+#
+# Services: db (PostgreSQL) → migrate (Alembic, one-shot) → api, worker (APScheduler), bot (aiogram)
+#           web (Caddy: static Mini App + /api proxy + automatic HTTPS)
+name: vestnio
+
+x-backend: &backend
+  build: ./backend
+  restart: unless-stopped
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  environment: &backend-env
+    VESTNIO_DATABASE_URL: postgresql+asyncpg://vestnio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/vestnio
+    VESTNIO_LOG_LEVEL: ${VESTNIO_LOG_LEVEL:-INFO}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vestnio
+      POSTGRES_USER: vestnio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vestnio -d vestnio"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      # the token is needed here only to verify Telegram initData signatures
+      VESTNIO_BOT_TOKEN: ${VESTNIO_BOT_TOKEN:-}
+      VESTNIO_ADMIN_IDS: ${VESTNIO_ADMIN_IDS:-}
+      VESTNIO_GUARDIAN_API_KEY: ${VESTNIO_GUARDIAN_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "vestnio.worker"]
+    environment:
+      <<: *backend-env
+      VESTNIO_GUARDIAN_API_KEY: ${VESTNIO_GUARDIAN_API_KEY:-}
+
+  bot:
+    <<: *backend
+    command: ["python", "-m", "vestnio.bot"]
+    environment:
+      VESTNIO_LOG_LEVEL: ${VESTNIO_LOG_LEVEL:-INFO}
+      VESTNIO_BOT_TOKEN: ${VESTNIO_BOT_TOKEN:?set VESTNIO_BOT_TOKEN in .env}
+      VESTNIO_WEBAPP_URL: https://${VESTNIO_DOMAIN:?set VESTNIO_DOMAIN in .env}/
+    depends_on: []
+
+  web:
+    build: ./webapp
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      VESTNIO_DOMAIN: ${VESTNIO_DOMAIN:?set VESTNIO_DOMAIN in .env}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

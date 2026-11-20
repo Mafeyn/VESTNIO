@@ -1,0 +1,10 @@
+.env
+.pgdata/
+**/.venv/
+**/__pycache__/
+.pytest_cache/
+webapp/node_modules/
+webapp/dist/
+public/
+.claude/
+.vercel/

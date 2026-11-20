@@ -1,0 +1,7 @@
+-r requirements.txt
+pytest>=8.2
+pytest-asyncio>=0.23
+respx>=0.21
+pillow>=10  # scripts/make_avatar.py
+# embedded PostgreSQL for local dev/tests when Docker isn't running
+pgserver>=0.1.4
