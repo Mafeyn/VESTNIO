@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, type CategoryId, type Sort, type Source } from "../lib/api";
 import { t } from "../lib/i18n";
 import { filters, useFilters } from "../lib/store";
@@ -158,7 +159,9 @@ export function FilterSheet({ open, onClose }: { open: boolean; onClose: () => v
   const toggle = (id: string) =>
     setDraft((d) => ({ ...d, sources: d.sources.includes(id) ? d.sources.filter((x) => x !== id) : [...d.sources, id] }));
 
-  return (
+  // Portal to <body>: an animated/transformed ancestor would otherwise become the
+  // containing block for this fixed overlay and push the sheet off-screen.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={t("filters")}>
       <button type="button" aria-label={t("clear")} onClick={onClose} className="fade-in absolute inset-0 bg-black/55" />
       <div className="sheet-enter relative flex max-h-[85dvh] w-full max-w-lg flex-col rounded-t-[26px] border border-line bg-bg pb-safe sm:rounded-[26px]">
@@ -242,6 +245,7 @@ export function FilterSheet({ open, onClose }: { open: boolean; onClose: () => v
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

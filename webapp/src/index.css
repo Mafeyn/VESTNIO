@@ -161,8 +161,10 @@ button {
     transform: none;
   }
 }
+/* "backwards", not "both": a transform kept after the animation would turn the
+   screen into the containing block for position:fixed children (sheets, banners). */
 .screen-enter {
-  animation: enter 280ms var(--ease-out-soft) both;
+  animation: enter 280ms var(--ease-out-soft) backwards;
 }
 
 @keyframes sheet-in {
