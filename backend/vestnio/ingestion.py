@@ -24,7 +24,7 @@ from .domain import IngestionMethod, SourceConfig, SourceStatus
 from .enrich import enrich_images
 from .fetcher import Fetcher
 from .normalizer import normalize_many
-from .source_manager import load_registry, status_after_failure
+from .source_manager import is_due, load_registry, status_after_failure
 
 log = logging.getLogger("vestnio.ingestion")
 
@@ -84,6 +84,13 @@ class IngestionService:
         """Poll every enabled source once, concurrently (bounded)."""
         async with self.sessionmaker() as s:
             rows = [r for r in await repo.list_sources(s) if r.enabled]
+        return list(await asyncio.gather(*(self.poll_source(r) for r in rows)))
+
+    async def poll_due(self) -> list[SourceRunResult]:
+        """Poll only the sources whose interval has elapsed (failing ones back off)."""
+        now = datetime.now(timezone.utc)
+        async with self.sessionmaker() as s:
+            rows = [r for r in await repo.list_sources(s) if is_due(r, now)]
         return list(await asyncio.gather(*(self.poll_source(r) for r in rows)))
 
     async def poll_source_id(self, source_id: str) -> SourceRunResult | None:

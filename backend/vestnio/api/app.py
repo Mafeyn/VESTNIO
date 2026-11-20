@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Path as PathParam, Query, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Path as PathParam, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -36,6 +36,7 @@ from ..domain import Category
 from ..bot_admin import BotAdmin
 from ..bot_replies import build_reply
 from ..fetcher import Fetcher
+from ..refresh import refresh_if_stale
 from ..telegram_auth import InitData, InitDataError, validate_init_data
 from .schemas import (
     ArticleDetailOut,
@@ -169,6 +170,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def list_articles(
         response: Response,
         session: SessionDep,
+        background: BackgroundTasks,
         category: Category | None = None,
         source: Annotated[list[str] | None, Query(description="source id; repeat or comma-separate")] = None,
         q: Annotated[str | None, Query(max_length=200, description="full-text search in headlines and summaries")] = None,
@@ -201,6 +203,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except repo.InvalidCursor as exc:
             raise ApiError(400, "invalid_cursor", str(exc)) from exc
         response.headers["Cache-Control"] = FEED_CACHE
+        if settings.self_refresh and cursor is None:
+            # safety net for missed cron runs: collect in the background if news is stale
+            background.add_task(refresh_if_stale, settings)
         effective_sort = sort if (sort != "relevance" or repo.build_tsquery(query.q)) else "newest"
         return Envelope(
             data=[_article_out(a, s) for a, s in rows],

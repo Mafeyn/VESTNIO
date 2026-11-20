@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     )
     # Serverless (Vercel): no pooled connections kept between invocations.
     db_null_pool: bool = Field(default_factory=lambda: bool(os.environ.get("VERCEL")))
+    # Serverless: the API collects stale sources itself when the feed is read
+    # (backup for late/skipped cron runs). Off where the APScheduler worker runs.
+    self_refresh: bool = Field(default_factory=lambda: bool(os.environ.get("VERCEL")))
     log_level: str = "INFO"
 
     sources_file: Path = BACKEND_DIR / "sources.yaml"
