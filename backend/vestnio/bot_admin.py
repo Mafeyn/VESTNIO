@@ -4,7 +4,9 @@
   • the bot checks that the channel exists and is public (has a t.me/s/ preview)
     and that it isn't already in VESTNIO
   • pick a category with the buttons → the channel is saved and polled at once
-  • /channels lists channels added this way, /remove @channel switches one off
+  • /channels lists every Telegram channel with a 🗑 button (asks to confirm);
+    /remove @channel removes one directly. Removed registry channels stay off
+    across sources.yaml syncs; sending the link again brings a channel back
   • /myid shows your Telegram user id (put it in VESTNIO_ADMIN_IDS)
 
 Only users listed in VESTNIO_ADMIN_IDS can manage channels; for everyone else the
@@ -149,7 +151,7 @@ class BotAdmin:
 
     async def _on_callback(self, cq: dict[str, Any]) -> list[Call] | None:
         data = cq.get("data") or ""
-        if not data.startswith("add:"):
+        if not data.startswith(("add:", "rm:", "rmy:", "rmn")):
             return None
         msg = cq.get("message") or {}
         chat_id = (msg.get("chat") or {}).get("id")
@@ -157,8 +159,17 @@ class BotAdmin:
         answer: Call = ("answerCallbackQuery", {"callback_query_id": cq.get("id")})
         if not self.is_admin(user_id):
             return [("answerCallbackQuery", {"callback_query_id": cq.get("id"), "text": "Только для администратора", "show_alert": True})]
+
+        def edit(text: str, markup: dict | None = None) -> Call:
+            payload = {"chat_id": chat_id, "message_id": msg.get("message_id"), "text": text, "parse_mode": "HTML"}
+            if markup:
+                payload["reply_markup"] = markup
+            return ("editMessageText", payload)
+
+        if data.startswith(("rm:", "rmy:", "rmn")):
+            return [answer, await self._on_remove_button(data, edit)]
+
         _, username, code = (data.split(":") + ["", ""])[:3]
-        edit = lambda text: ("editMessageText", {"chat_id": chat_id, "message_id": msg.get("message_id"), "text": text, "parse_mode": "HTML"})  # noqa: E731
         if code == "x":
             return [answer, edit("Добавление отменено.")]
         category = _CAT_CODE.get(code)
@@ -190,20 +201,57 @@ class BotAdmin:
             return None
         return result.inserted if result and result.ok else None
 
-    async def _list(self, chat_id: int) -> Call:
+    async def _channels_view(self) -> tuple[str, dict | None]:
+        """Text + one '🗑 name' button per channel (all Telegram channels in VESTNIO)."""
         async with self.sessionmaker() as s:
-            rows = await repo.list_bot_channels(s)
+            rows = await repo.list_channels(s)
         if not rows:
-            return _send(chat_id, "Через бота каналы ещё не добавлялись. Пришлите ссылку на канал, чтобы добавить.")
-        lines = [f"{CATEGORIES.get(r.category, r.category)} · <b>{html.escape(r.name)}</b> — {r.homepage.replace('https://', '')}" for r in rows]
-        return _send(chat_id, "Каналы, добавленные через бота:\n\n" + "\n".join(lines) + "\n\nУдалить: /remove @канал")
+            return "В VESTNIO пока нет Telegram-каналов. Пришлите ссылку на канал, чтобы добавить.", None
+        lines, buttons, current = [], [], None
+        for r in rows:
+            if r.category != current:
+                current = r.category
+                lines.append(f"\n<b>{CATEGORIES.get(r.category, r.category)}</b>")
+            username = repo.channel_username(r)
+            lines.append(f"• {html.escape(r.name)} — @{username}")
+            buttons.append([{"text": f"🗑 {r.name[:40]}", "callback_data": f"rm:{username}"[:64]}])
+        text = f"Telegram-каналы в VESTNIO ({len(rows)}):\n" + "\n".join(lines) + "\n\nНажмите на канал ниже, чтобы удалить его."
+        return text, {"inline_keyboard": buttons[:95]}
+
+    async def _list(self, chat_id: int) -> Call:
+        text, markup = await self._channels_view()
+        return _send(chat_id, text, markup)
+
+    async def _on_remove_button(self, data: str, edit) -> Call:
+        kind, _, username = data.partition(":")
+        if kind == "rmn" or not re.fullmatch(_USERNAME, username or ""):
+            text, markup = await self._channels_view()  # "Нет" → back to the list
+            return edit(text, markup)
+        if kind == "rm":  # ask first: one accidental tap must not remove a channel
+            async with self.sessionmaker() as s:
+                src = await repo.find_channel_source(s, username)
+            if src is None:
+                text, markup = await self._channels_view()
+                return edit("Этого канала уже нет в VESTNIO.\n\n" + text, markup)
+            confirm = {"inline_keyboard": [[
+                {"text": "🗑 Да, удалить", "callback_data": f"rmy:{username}"[:64]},
+                {"text": "↩️ Нет", "callback_data": "rmn"},
+            ]]}
+            return edit(f"Удалить канал <b>{html.escape(src.name)}</b> (@{username}) из VESTNIO?\n"
+                        "Его посты пропадут из ленты. Вернуть можно, прислав ссылку на канал снова.", confirm)
+        async with self.sessionmaker() as s:  # rmy: confirmed
+            src = await repo.disable_channel(s, username)
+        if src is None:
+            return edit("Этого канала уже нет в VESTNIO.")
+        return edit(f"🗑 Канал <b>{html.escape(src.name)}</b> удалён из VESTNIO.\nВернуть: пришлите ссылку t.me/{username}")
 
     async def _remove(self, chat_id: int, text: str) -> Call:
-        username = extract_channel({"text": text.partition(" ")[2]})
+        arg = text.partition(" ")[2].strip()
+        username = extract_channel({"text": arg}) or (arg if re.fullmatch(_USERNAME, arg) else None)
         if not username:
-            return _send(chat_id, "Укажите канал: <code>/remove @канал</code>")
+            return _send(chat_id, "Укажите канал: <code>/remove @канал</code> — или выберите его в /channels")
         async with self.sessionmaker() as s:
-            src = await repo.disable_bot_channel(s, username)
+            src = await repo.disable_channel(s, username)
         if src is None:
-            return _send(chat_id, f"@{html.escape(username)} не найден среди каналов, добавленных через бота.")
-        return _send(chat_id, f"🗑 Канал <b>{html.escape(src.name)}</b> убран из VESTNIO.")
+            return _send(chat_id, f"Канала @{html.escape(username)} нет в VESTNIO. Список каналов: /channels")
+        return _send(chat_id, f"🗑 Канал <b>{html.escape(src.name)}</b> удалён из VESTNIO.\nВернуть: пришлите ссылку t.me/{username}")

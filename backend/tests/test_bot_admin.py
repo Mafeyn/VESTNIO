@@ -95,11 +95,69 @@ async def test_full_add_flow(admin_settings, sessionmaker):
         [(_, listing)] = await bot.handle(_msg("/channels"))
         assert "Новости Тест" in listing["text"]
         [(_, removed)] = await bot.handle(_msg("/remove @newsy"))
-        assert "убран" in removed["text"]
+        assert "удалён" in removed["text"]
 
     async with sessionmaker() as s:
         src = await repo.get_source(s, "tg-newsy")
         assert src.origin == "bot" and src.category == "technology" and not src.enabled and src.added_by == ADMIN
+
+
+REGISTRY_CH = SourceConfig(id="tg-reg", name="Registry Chan", url="https://t.me/s/RegChan", category="world", method="telegram")
+
+
+@requires_db
+@respx.mock
+async def test_remove_registry_channel_via_buttons_and_bring_back(admin_settings, sessionmaker):
+    respx.get("https://t.me/robots.txt").respond(404)
+    respx.get("https://t.me/s/regchan").respond(200, html=PREVIEW.replace("Новости Тест", "Registry Chan"))
+    respx.get("https://t.me/s/RegChan").respond(200, html=PREVIEW.replace("Новости Тест", "Registry Chan"))
+    async with sessionmaker() as s:
+        await repo.sync_sources(s, [REGISTRY_CH], 15)
+    async with Fetcher(admin_settings) as f:
+        bot = BotAdmin(admin_settings, sessionmaker, f)
+
+        # /channels lists registry channels too, one 🗑 button each
+        [(_, listing)] = await bot.handle(_msg("/channels"))
+        assert "Registry Chan" in listing["text"]
+        assert listing["reply_markup"]["inline_keyboard"] == [[{"text": "🗑 Registry Chan", "callback_data": "rm:RegChan"}]]
+
+        # tap → confirmation (nothing removed yet)
+        [_, (_, confirm)] = await bot.handle(_cb("rm:RegChan"))
+        assert "Удалить канал" in confirm["text"]
+        async with sessionmaker() as s:
+            assert (await repo.get_source(s, "tg-reg")).enabled
+
+        # "Нет" → back to the list, still enabled
+        [_, (_, back)] = await bot.handle(_cb("rmn"))
+        assert "Registry Chan" in back["text"]
+
+        # "Да" → removed, only this channel
+        [_, (_, done)] = await bot.handle(_cb("rmy:RegChan"))
+        assert "удалён" in done["text"]
+
+    async with sessionmaker() as s:
+        await repo.sync_sources(s, [REGISTRY_CH], 15)  # sources.yaml still says enabled
+        src = await repo.get_source(s, "tg-reg")
+        assert not src.enabled and src.admin_disabled  # stays removed
+
+    # sending the link again brings it back (same source, new category)
+    async with Fetcher(admin_settings) as f:
+        bot = BotAdmin(admin_settings, sessionmaker, f)
+        [(_, offer)] = await bot.handle(_msg("t.me/RegChan"))
+        assert "reply_markup" in offer  # not "already exists": it was removed
+        await bot.handle(_cb("add:RegChan:g"))
+    async with sessionmaker() as s:
+        src = await repo.get_source(s, "tg-reg")
+        assert src.enabled and not src.admin_disabled and src.category == "gaming"
+        await repo.sync_sources(s, [REGISTRY_CH], 15)
+        assert (await repo.get_source(s, "tg-reg")).enabled
+
+
+@requires_db
+async def test_remove_unknown_channel(admin_settings, sessionmaker):
+    async with Fetcher(admin_settings) as f:
+        [(_, p)] = await BotAdmin(admin_settings, sessionmaker, f).handle(_msg("/remove nosuchchan"))
+    assert "нет в VESTNIO" in p["text"]
 
 
 @requires_db

@@ -51,10 +51,10 @@ async def sync_sources(session: AsyncSession, configs: Sequence[SourceConfig], d
             .values(etag=None, last_modified=None)
         )
         stmt = pg_insert(Source).values(**values)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[Source.id],
-            set_={k: stmt.excluded[k] for k in values if k != "id"},
-        )
+        set_ = {k: stmt.excluded[k] for k in values if k != "id"}
+        # a channel the admin removed in the bot stays off, whatever sources.yaml says
+        set_["enabled"] = and_(stmt.excluded.enabled, Source.admin_disabled.is_(False))
+        stmt = stmt.on_conflict_do_update(index_elements=[Source.id], set_=set_)
         await session.execute(stmt)
     # Disabled-in-config sources show as "disabled"; re-enabled ones leave that state.
     await session.execute(
@@ -75,24 +75,28 @@ async def sync_sources(session: AsyncSession, configs: Sequence[SourceConfig], d
     await session.commit()
 
 
+def _channel_url_match(username: str):
+    return func.lower(Source.url) == f"https://t.me/s/{username.lower()}"
+
+
 async def add_bot_channel(
     session: AsyncSession, *, username: str, title: str, category: str, added_by: int, default_poll: int
 ) -> tuple[Source, bool]:
-    """Create (or re-enable) a Telegram channel source added through the bot.
-    Returns (source, created). A channel already defined in sources.yaml is left as is."""
-    sid = f"tg-{username.lower()}"[:64]
-    existing = await session.get(Source, sid)
+    """Add a Telegram channel through the bot, or bring back one that was removed.
+    Returns (source, added). An enabled channel already in VESTNIO is left as is."""
+    # match by URL: registry ids differ from the username (tg-4pda for @pda_4)
+    existing = await session.scalar(select(Source).where(_channel_url_match(username)).order_by(Source.enabled.desc()))
     if existing is not None:
-        if existing.origin == "bot" and not existing.enabled:
-            existing.enabled, existing.status, existing.category = True, "pending", category
-            existing.consecutive_failures = 0
-            await session.commit()
-            return existing, True
-        return existing, False
-    # the same channel might exist under a registry id (e.g. tg-4pda for @pda_4)
-    same_url = await session.scalar(select(Source).where(func.lower(Source.url) == f"https://t.me/s/{username.lower()}"))
-    if same_url is not None and same_url.enabled:
-        return same_url, False
+        if existing.enabled:
+            return existing, False
+        existing.enabled, existing.admin_disabled = True, False
+        existing.status, existing.consecutive_failures, existing.category = "pending", 0, category
+        existing.in_registry = True
+        await session.commit()
+        return existing, True
+    sid = f"tg-{username.lower()}"[:64]
+    if await session.get(Source, sid) is not None:  # id taken by an unrelated source
+        sid = f"tg-bot-{username.lower()}"[:64]
     src = Source(
         id=sid,
         name=title[:200] or f"@{username}",
@@ -119,27 +123,32 @@ async def add_bot_channel(
 
 async def find_channel_source(session: AsyncSession, username: str) -> Source | None:
     """An *enabled* source for this Telegram channel, from sources.yaml or added via the bot."""
-    return await session.scalar(
-        select(Source).where(
-            func.lower(Source.url) == f"https://t.me/s/{username.lower()}",
-            Source.enabled.is_(True),
-        )
+    return await session.scalar(select(Source).where(_channel_url_match(username), Source.enabled.is_(True)))
+
+
+async def list_channels(session: AsyncSession) -> list[Source]:
+    """All enabled Telegram channels, whichever way they were added."""
+    stmt = (
+        select(Source)
+        .where(Source.method == "telegram", Source.enabled.is_(True))
+        .order_by(Source.category, func.lower(Source.name))
     )
-
-
-async def list_bot_channels(session: AsyncSession) -> list[Source]:
-    stmt = select(Source).where(Source.origin == "bot", Source.enabled.is_(True)).order_by(Source.category, Source.name)
     return list((await session.scalars(stmt)).all())
 
 
-async def disable_bot_channel(session: AsyncSession, username: str) -> Source | None:
-    """Switch off a bot-added channel (its articles disappear from the feed)."""
-    src = await session.get(Source, f"tg-{username.lower()}"[:64])
-    if src is None or src.origin != "bot" or not src.enabled:
+async def disable_channel(session: AsyncSession, username: str) -> Source | None:
+    """Remove one Telegram channel from VESTNIO (any origin). Its articles disappear
+    from the feed; registry syncs keep it off until it's added again via the bot."""
+    src = await find_channel_source(session, username)
+    if src is None:
         return None
-    src.enabled, src.status = False, "disabled"
+    src.enabled, src.admin_disabled, src.status = False, True, "disabled"
     await session.commit()
     return src
+
+
+def channel_username(source: Source) -> str:
+    return source.url.rstrip("/").rsplit("/", 1)[-1]
 
 
 async def list_sources(session: AsyncSession, *, only_registry: bool = True) -> list[Source]:
