@@ -33,7 +33,9 @@ from ..config import Settings, get_settings
 from ..db import dispose_engine, get_session, get_sessionmaker
 from ..db import repository as repo
 from ..domain import Category
+from ..bot_admin import BotAdmin
 from ..bot_replies import build_reply
+from ..fetcher import Fetcher
 from ..telegram_auth import InitData, InitDataError, validate_init_data
 from .schemas import (
     ArticleDetailOut,
@@ -305,14 +307,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(404, "not_found", "Unknown API endpoint")
         if not hmac.compare_digest(x_telegram_bot_api_secret_token or "", secret):
             raise ApiError(403, "forbidden", "Bad webhook secret")
+        api = f"https://api.telegram.org/bot{settings.bot_token.get_secret_value()}"
         try:
             update = await request.json()
-            reply = build_reply(update, settings.webapp_url or "")
-            if reply:
-                async with httpx.AsyncClient(timeout=10) as client:
-                    await client.post(
-                        f"https://api.telegram.org/bot{settings.bot_token.get_secret_value()}/sendMessage", json=reply
-                    )
+            async with Fetcher(settings) as fetcher:
+                calls = await BotAdmin(settings, get_sessionmaker(), fetcher).handle(update)
+            if calls is None:
+                reply = build_reply(update, settings.webapp_url or "")
+                calls = [("sendMessage", reply)] if reply else []
+            async with httpx.AsyncClient(timeout=10) as client:
+                for method, payload in calls:
+                    r = await client.post(f"{api}/{method}", json=payload)
+                    if r.status_code != 200:
+                        log.warning("telegram %s failed: %s", method, r.text[:200])
         except Exception:  # always 200, or Telegram re-delivers the same update forever
             log.exception("webhook update failed")
         return {"ok": True}

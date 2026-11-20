@@ -53,7 +53,7 @@ def main() -> None:
         "setWebhook",
         url=base + "api/telegram/webhook",
         secret_token=s.webhook_secret.get_secret_value(),
-        allowed_updates=["message"],
+        allowed_updates=["message", "callback_query"],  # callback_query: category buttons
         drop_pending_updates=True,
     )
     call(token, "setChatMenuButton", menu_button={"type": "web_app", "text": TEXT["ru"]["menu"], "web_app": {"url": base}})
@@ -71,7 +71,7 @@ def main() -> None:
     me = call(token, "getMe")["result"]
     print(f"@{me['username']}: webhook -> {info['url']} (pending updates: {info.get('pending_update_count', 0)})")
     print(f"menu button -> {base}")
-    print("Also set this URL in @BotFather → Bot Settings → Configure Mini App.")
+    print("Optional: enable Main App with this URL in @BotFather → your bot → Mini Apps → Main App.")
 
 
 if __name__ == "__main__":

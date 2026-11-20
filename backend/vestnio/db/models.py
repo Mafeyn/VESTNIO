@@ -40,6 +40,9 @@ class Source(Base):
     language: Mapped[str | None] = mapped_column(String(16))
     options: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))
     in_registry: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    # 'registry' = defined in sources.yaml; 'bot' = added by an admin through the Telegram bot
+    origin: Mapped[str] = mapped_column(String(16), default="registry", server_default="registry")
+    added_by: Mapped[int | None] = mapped_column(BigInteger)  # Telegram user id of the admin
 
     # operational status
     status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
