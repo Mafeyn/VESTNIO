@@ -19,6 +19,7 @@ from vestnio.config import Settings, normalize_database_url
         ),
         ("postgres://u:p@h:5432/db", "postgresql+asyncpg://u:p@h:5432/db"),
         ("postgresql+asyncpg://u:p@h/db", "postgresql+asyncpg://u:p@h/db"),
+        ('﻿"postgresql://u:p@h/db?sslmode=require"\r\n', "postgresql+asyncpg://u:p@h/db?ssl=require"),
     ],
 )
 def test_normalize_database_url(raw, expected):

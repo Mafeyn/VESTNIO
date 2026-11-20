@@ -14,7 +14,9 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 def normalize_database_url(url: str) -> str:
     """postgres://…?sslmode=require (Neon, Heroku-style) → postgresql+asyncpg://…?ssl=require."""
-    parts = urlsplit(url.strip())
+    # tolerate values pasted with quotes, whitespace or a byte-order mark
+    url = url.strip().lstrip("﻿").strip().strip("\"'").strip()
+    parts = urlsplit(url)
     scheme = parts.scheme
     if scheme in ("postgres", "postgresql"):
         scheme = "postgresql+asyncpg"
